@@ -145,7 +145,21 @@ for raw_line in sys.stdin:
         if action == 'transcribe':
             send({'id': request_id, 'ok': True, **transcribe(request)})
         elif action == 'warmup':
-            _, device = ensure_model(request)
+            loaded_model, device = ensure_model(request)
+            # Loading weights alone doesn't pay the CUDA kernel/cudnn JIT
+            # compile cost — that happens on the first real transcribe()
+            # call. Run one dummy inference here so that cost lands during
+            # warmup instead of blocking the user's first real question.
+            silent_audio = np.zeros(whisper.audio.SAMPLE_RATE, dtype=np.float32)
+            loaded_model.transcribe(
+                silent_audio,
+                language='en',
+                task='transcribe',
+                fp16=device == 'cuda',
+                verbose=None,
+                temperature=0,
+                condition_on_previous_text=False,
+            )
             send({
                 'id': request_id,
                 'ok': True,

@@ -847,8 +847,25 @@
       loadHistory();
       initSpeechAvailability();
 
+      // Defer to next paint so scrollHeight reflects post-layout size
+      // (avoids landing short of true bottom right after a DOM append).
+      function scrollChatToBottom() {
+        requestAnimationFrame(() => {
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+      }
+
+      // Bring a newly-added message into view starting from its own top
+      // edge, so a long answer is read from the beginning instead of
+      // snapping straight to the bottom of the whole chat history.
+      function scrollMessageIntoView(messageDiv) {
+        requestAnimationFrame(() => {
+          messageDiv.scrollIntoView({ block: 'start', behavior: 'auto' });
+        });
+      }
+
       // Basic message function with markdown support for assistant messages
-      function addMessage(text, type = 'user', skipPersist = false) {
+      function addMessage(text, type = 'user', skipPersist = false, scroll = true) {
         if (!chatMessages) {
           console.error('Chat messages element not found!');
           return;
@@ -876,7 +893,16 @@
         messageDiv.appendChild(textDiv);
 
         chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (scroll) {
+          if (type === 'assistant') {
+            // Scroll the new answer into view from its own top, not the bottom
+            // of the whole chat — a long answer shouldn't force the user to
+            // scroll back up just to read it from the start.
+            scrollMessageIntoView(messageDiv);
+          } else {
+            scrollChatToBottom();
+          }
+        }
 
         if (!skipPersist) {
           chatHistory.push({ kind: 'message', type, text });
@@ -923,7 +949,7 @@
         thinkingDiv.appendChild(textDiv);
 
         chatMessages.appendChild(thinkingDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        scrollChatToBottom();
       }
 
       // Hide thinking indicator
@@ -1084,7 +1110,7 @@
           }
         });
       }
-      function addCodeSnippet(language, code, skipPersist = false) {
+      function addCodeSnippet(language, code, skipPersist = false, scroll = true) {
         if (!chatMessages) return;
         const messageDiv = document.createElement('div');
         messageDiv.className = 'message assistant';
@@ -1118,7 +1144,9 @@
         messageDiv.appendChild(timeDiv);
         messageDiv.appendChild(textDiv);
         chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (scroll) {
+          scrollMessageIntoView(messageDiv);
+        }
 
         try { if (window.Prism && Prism.highlightElement) { Prism.highlightElement(codeEl); } } catch (_) {}
 
@@ -1141,12 +1169,13 @@
 
         const blocks = extractCodeBlocks(response);
         const textOnly = stripCodeBlocks(response, blocks);
-        // Add text response first (if any)
-        if (textOnly && textOnly.trim().length) {
-          addMessage(textOnly, 'assistant');
+        // Add text response first (if any) — only this first piece scrolls,
+        // so the whole answer is read from its own top, not the chat bottom.
+        const hasText = textOnly && textOnly.trim().length;
+        if (hasText) {
+          addMessage(textOnly, 'assistant', false, true);
         }
-        // Add each code snippet separately
-        blocks.forEach(b => addCodeSnippet(b.language, b.code));
+        blocks.forEach((b, i) => addCodeSnippet(b.language, b.code, false, !hasText && i === 0));
       }
 
       // Basic IPC Event Listeners - simplified
@@ -1171,12 +1200,10 @@
         whysperAPI.onSpeechStatus((event, data) => {
           if (data && data.status) {
             addMessage(data.status, 'system');
-
-            if (data.status.includes('started') || data.status.includes('Recording')) {
-              handleRecordingStarted();
-            } else if (data.status.includes('stopped') || data.status.includes('ended')) {
-              handleRecordingStopped();
-            }
+            // Recording state is driven solely by onRecordingStarted/onRecordingStopped
+            // below — this status text ("Recording stopped") contains the substring
+            // "Recording" and used to false-match the started case, clobbering the
+            // correct state right after it was set.
           }
         });
 

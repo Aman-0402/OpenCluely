@@ -13,6 +13,11 @@ body {
     cursor: default;
 }
 
+/* Keep the default arrow cursor everywhere — no hand/pointer cursor on clickable elements */
+*, *:hover {
+    cursor: default !important;
+}
+
 /* Common container styles */
 .app-container {
     width: 100%;

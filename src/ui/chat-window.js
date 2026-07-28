@@ -94,15 +94,23 @@ class ChatWindowUI {
             window.electronAPI.onSpeechStatus((event, data) => {
                 if (data && data.status) {
                     this.addMessage(data.status, 'system');
-                    
-                    // Update recording state based on status
-                    if (data.status.includes('started') || data.status.includes('Recording')) {
-                        this.handleRecordingStarted();
-                    } else if (data.status.includes('stopped') || data.status.includes('ended')) {
-                        this.handleRecordingStopped();
-                    }
                 }
             });
+
+            // Use the dedicated recording-state events (not status text matching —
+            // the final "Recording stopped" status contains the substring
+            // "Recording", which used to false-trigger handleRecordingStarted()
+            // and leave the mic stuck thinking it was still recording).
+            if (window.electronAPI.onRecordingStarted) {
+                window.electronAPI.onRecordingStarted(() => {
+                    this.handleRecordingStarted();
+                });
+            }
+            if (window.electronAPI.onRecordingStopped) {
+                window.electronAPI.onRecordingStopped(() => {
+                    this.handleRecordingStopped();
+                });
+            }
             
             window.electronAPI.onSpeechError((event, data) => {
                 if (data && data.error) {

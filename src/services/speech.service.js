@@ -529,6 +529,27 @@ class SpeechService extends EventEmitter {
         language: this._getWhisperLanguage()
       });
       this.emit('status', 'Local Whisper ready');
+
+      // Warm up the model (incl. a dummy inference to pay the one-time CUDA
+      // kernel/cudnn JIT compile cost) at startup, so the user's first real
+      // question isn't the one eating that delay.
+      if (this.whisperWorker && this.whisperWorker.isConfigured()) {
+        this.whisperWorker.warmup({
+          model: this._getWhisperModel(),
+          modelDir: this._getWhisperModelDir(),
+          device: this._getWhisperDevice()
+        }).then((result) => {
+          logger.info('Whisper warmed up at startup', {
+            model: result.model,
+            device: result.device,
+            gpu: result.gpu
+          });
+        }).catch((error) => {
+          logger.warn('Startup Whisper warmup failed; first transcription may be slower', {
+            error: error.message
+          });
+        });
+      }
     } catch (error) {
       logger.error('Failed to initialize local Whisper client', {
         error: error.message,

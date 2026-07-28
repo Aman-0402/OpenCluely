@@ -10,7 +10,7 @@ class MainWindowUI {
     constructor() {
         this.isInteractive = false;
         this.isHidden = false;
-        this.currentSkill = 'dsa'; // Default, will be updated from settings
+        this.currentSkill = 'programming'; // Default, will be updated from settings
         this.statusDot = null;
         this.skillIndicator = null;
         this.micButton = null;
@@ -25,7 +25,8 @@ class MainWindowUI {
         
         // Define available skills for navigation
         this.availableSkills = [
-            'dsa'
+            'dsa',
+            'programming'
         ];
         
         this.init();
@@ -288,17 +289,10 @@ class MainWindowUI {
             }
         });
 
-        // Skill indicator click handler toggles DSA skill
+        // Skill indicator click handler cycles through available skills
         this.skillIndicator.addEventListener('click', () => {
             if (!this.isInteractive) return;
-            const newSkill = 'dsa';
-            if (window.electronAPI && window.electronAPI.updateActiveSkill) {
-                window.electronAPI.updateActiveSkill(newSkill).then(() => {
-                    this.handleSkillActivated(newSkill);
-                });
-            } else {
-                this.handleSkillActivated(newSkill);
-            }
+            this.navigateSkill(1);
         });
 
         // Check for required elements (settingsIndicator is optional)
