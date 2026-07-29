@@ -1417,7 +1417,10 @@ class SpeechService extends EventEmitter {
   _configureWhisperWorker() {
     const pythonPath = this._getWhisperPythonPath();
     const scriptPath = this._getWhisperWorkerScriptPath();
-    const idleUnloadMs = Math.max(10000, Number(process.env.WHISPER_GPU_IDLE_MS || 60000));
+    // 60s was too aggressive for real usage — any gap between questions longer
+    // than that paid the full CUDA reload + JIT-compile cost again (~15-25s).
+    // Default to 30 minutes; still overridable via WHISPER_GPU_IDLE_MS.
+    const idleUnloadMs = Math.max(10000, Number(process.env.WHISPER_GPU_IDLE_MS || 1800000));
     this.whisperWorker.configure({ pythonPath, scriptPath, idleUnloadMs });
 
     logger.info('Whisper worker configuration', {
