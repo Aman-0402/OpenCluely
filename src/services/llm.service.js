@@ -298,8 +298,8 @@ class LLMService {
   }
 
   formatImageInstruction(activeSkill, programmingLanguage) {
-    const langNote = programmingLanguage ? ` Use only ${programmingLanguage.toUpperCase()} for any code.` : '';
-    return `Analyze this image for a ${activeSkill.toUpperCase()} question. Extract the problem concisely and provide the best possible solution with explanation and final code.${langNote}`;
+    const langNote = programmingLanguage ? ` If code is relevant, respond with code only in ${programmingLanguage.toUpperCase()}.` : '';
+    return `This screenshot is from a live technical interview. Find the actual question or problem shown on screen — it may sit among an editor, browser, slides, or other UI — and answer it directly and concisely. Match the answer format to what's actually being asked: working code with explanation for a coding/DSA problem, plain reasoning for a conceptual/behavioral/system-design question — don't force code where none is relevant.${langNote}`;
   }
 
   async processTextWithSkill(text, activeSkill, sessionMemory = [], programmingLanguage = null) {

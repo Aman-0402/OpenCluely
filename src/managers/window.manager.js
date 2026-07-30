@@ -725,51 +725,60 @@ class WindowManager {
     });
   }
 
-  // New method to position bound windows (vertical column layout) - Always at top
+  // Position bound windows (vertical column layout), anchored to wherever
+  // the user last dragged the main bar rather than always resetting to a
+  // fixed top-center spot. Native -webkit-app-region drag moves the main
+  // window directly via the OS, so mainWindow.getPosition() already
+  // reflects the user's chosen spot — this used to be ignored, which made
+  // every new answer snap the bar back to the top.
   positionBoundWindows() {
     const mainWindow = this.windows.get('main');
     const llmWindow = this.windows.get('llmResponse');
-    
+
     if (!mainWindow || !llmWindow) return;
-    
+
     const display = this.currentDisplay || screen.getPrimaryDisplay();
     const { x: displayX, y: displayY, width: screenWidth, height: screenHeight } = display.workArea;
-    
+
     const [mainWidth, mainHeight] = mainWindow.getSize();
     const [llmWidth, llmHeight] = llmWindow.getSize();
-    
-    // Always position at the top of the screen with small margin
     const topMargin = 20;
-    const startY = displayY + topMargin;
-    
-    // Use the wider window for horizontal centering
-    const maxWidth = Math.max(mainWidth, llmWidth);
-    
-    // Center horizontally on the display
-    const xPosition = displayX + Math.round((screenWidth - maxWidth) / 2);
-    
-    // Ensure windows don't go outside screen bounds horizontally
-    const adjustedMainX = Math.max(displayX, Math.min(displayX + screenWidth - mainWidth, xPosition));
-    const adjustedLlmX = Math.max(displayX, Math.min(displayX + screenWidth - llmWidth, xPosition));
-    
-    // Position main window (top)
-    const mainX = adjustedMainX;
-    const mainY = startY;
-    mainWindow.setPosition(mainX, mainY);
-    
-    // Position LLM response window below with gap
+
+    const [currentMainX, currentMainY] = mainWindow.getPosition();
+    // Windows get parked at (-10000,-10000) to hide during screen share —
+    // that's not a real user position, so fall back to the default spot.
+    const hasKnownPosition = Number.isFinite(currentMainX) && Number.isFinite(currentMainY)
+      && currentMainX > -5000 && currentMainY > -5000;
+
+    const defaultX = displayX + Math.round((screenWidth - Math.max(mainWidth, llmWidth)) / 2);
+    const defaultY = displayY + topMargin;
+    const baseX = hasKnownPosition ? currentMainX : defaultX;
+    const baseY = hasKnownPosition ? currentMainY : defaultY;
+
+    // Clamp within the current display's work area.
+    const adjustedMainX = Math.max(displayX, Math.min(displayX + screenWidth - mainWidth, baseX));
+    const adjustedMainY = Math.max(displayY, Math.min(displayY + screenHeight - mainHeight, baseY));
+    const adjustedLlmX = Math.max(displayX, Math.min(displayX + screenWidth - llmWidth, adjustedMainX));
+
+    mainWindow.setPosition(adjustedMainX, adjustedMainY);
+
+    // Response window goes below the bar by default; if that would run off
+    // the bottom of the screen, place it above instead.
+    const fitsBelow = adjustedMainY + mainHeight + this.windowGap + llmHeight <= displayY + screenHeight;
     const llmX = adjustedLlmX;
-    const llmY = startY + mainHeight + this.windowGap;
+    const llmY = fitsBelow
+      ? adjustedMainY + mainHeight + this.windowGap
+      : Math.max(displayY, adjustedMainY - this.windowGap - llmHeight);
     llmWindow.setPosition(llmX, llmY);
-    
+
     // Update stored position (use main window position as reference)
-    this.boundWindowsPosition = { x: adjustedMainX, y: startY };
-    
-    logger.debug('Positioned bound windows at top (column layout)', {
-      mainPosition: `${mainX},${mainY}`,
+    this.boundWindowsPosition = { x: adjustedMainX, y: adjustedMainY };
+
+    logger.debug('Positioned bound windows relative to current bar position', {
+      mainPosition: `${adjustedMainX},${adjustedMainY}`,
       llmPosition: `${llmX},${llmY}`,
       gap: this.windowGap,
-      topMargin: topMargin,
+      usedDraggedPosition: hasKnownPosition,
       display: display.id
     });
   }

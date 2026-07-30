@@ -767,6 +767,8 @@ class SpeechService extends EventEmitter {
     this.vadPreRoll = [];            // ring of recent pre-speech chunks
     this.vadPreRollMs = 0;           // duration held in the pre-roll ring
     this.vadLastChunkAt = 0;         // timestamp of the last ingested chunk
+    this._stopInterimPreviewTimer();
+    this.interimTranscriptionInFlight = false;
   }
 
   /**
@@ -897,6 +899,7 @@ class SpeechService extends EventEmitter {
         this.vadSpeaking = true;
         this.vadSpeechMs = 0;
         this.vadSilenceMs = 0;
+        this._startInterimPreviewTimer();
         for (const pre of this.vadPreRoll) {
           this.segmentBuffers.push(pre);
           this.segmentBytes += pre.length;
@@ -945,6 +948,7 @@ class SpeechService extends EventEmitter {
       this.vadSpeaking = false;
       this.vadSpeechMs = 0;
       this.vadSilenceMs = 0;
+      this._stopInterimPreviewTimer();
     }
   }
 
@@ -955,9 +959,63 @@ class SpeechService extends EventEmitter {
     this.vadSilenceMs = 0;
     this.vadPreRoll = [];
     this.vadPreRollMs = 0;
+    this._stopInterimPreviewTimer();
     this._flushWhisperSegment({ final: false }).catch((error) => {
       logger.error('Whisper segment transcription failed', { error: error.message });
     });
+  }
+
+  _getInterimPreviewIntervalMs() {
+    const parsed = Number(process.env.WHISPER_INTERIM_INTERVAL_MS || 2500);
+    return Number.isFinite(parsed) ? Math.max(1000, parsed) : 2500;
+  }
+
+  /**
+   * While the user is mid-utterance (long situational questions especially),
+   * periodically transcribe the audio accumulated so far — without touching
+   * the buffer the final flush will use — so the UI can show a live, growing
+   * preview of what's being heard instead of staying blank until the whole
+   * question (and its 5s trailing silence) finishes.
+   */
+  _startInterimPreviewTimer() {
+    if (this.vadInterimTimer) {
+      return;
+    }
+    this.vadInterimTimer = setInterval(() => {
+      this._emitInterimPreview();
+    }, this._getInterimPreviewIntervalMs());
+  }
+
+  _stopInterimPreviewTimer() {
+    if (this.vadInterimTimer) {
+      clearInterval(this.vadInterimTimer);
+      this.vadInterimTimer = null;
+    }
+  }
+
+  async _emitInterimPreview() {
+    if (!this.vadSpeaking || this.interimTranscriptionInFlight || this.transcriptionInFlight) {
+      return;
+    }
+    if (!this.segmentBytes || this.segmentBytes < 8000) {
+      // Too little audio yet (~0.25s) for a useful preview.
+      return;
+    }
+
+    // Snapshot without clearing — the final flush still owns this buffer.
+    const audioBuffer = Buffer.concat(this.segmentBuffers, this.segmentBytes);
+    this.interimTranscriptionInFlight = true;
+    try {
+      const transcript = await this._transcribeWhisperBuffer(audioBuffer);
+      const clean = transcript ? transcript.trim() : '';
+      if (clean && !this._isHallucinatedTranscript(clean)) {
+        this.emit('interim-transcription', clean);
+      }
+    } catch (error) {
+      logger.debug('Interim Whisper preview failed (non-fatal)', { error: error.message });
+    } finally {
+      this.interimTranscriptionInFlight = false;
+    }
   }
 
   _chunkDurationMs(buffer) {
