@@ -75,9 +75,11 @@ assests/icons/                # app icons — note the misspelling "assests" is 
 
 ## Skill / Prompt System
 
-- Prompts live in `prompts/*.md`, loaded by `prompt-loader.js`. Currently two: `dsa.md` (strict single-language code-only DSA solver) and `programming.md` (adaptive — conceptual/coding/system-design/debugging/internals/framework-specific questions across the full stack, not just algorithms).
+- Prompts live in `prompts/*.md`, loaded by `prompt-loader.js`. Currently three: `dsa.md` (strict single-language code-only DSA solver), `programming.md` (adaptive — conceptual/coding/system-design/debugging/internals/framework-specific questions across the full stack), and `business-ai.md` (AI-for-business curriculum — prompt engineering, ethics, business writing, Excel/PowerPoint/Canva/Copilot, marketing/HR/finance/ops AI, automation/agents, case studies/capstone).
 - Default active skill is `"programming"` (was hardcoded to `"dsa"` in `main.js`, `session.manager.js`, `main-window.js` — changed in all three; keep them in sync if adding a new default).
-- The skill picker (`settings.html` `#activeSkill` dropdown) and the skill-badge click-cycle (`main-window.js` `navigateSkill()`, wired to the badge's click handler) both read from `availableSkills`/`getAvailableSkills()` — when adding a new skill `.md` file, no other code changes are needed, both surfaces pick it up automatically.
+- Skill selection surfaces read from `availableSkills`/`getAvailableSkills()` in **two separate places that must both stay in sync**, since it's easy to fix one and miss the other:
+  - Dynamic (auto-picks up new `.md` files, no code change needed): `prompt-loader.js`'s `getAvailableSkills()` (returns whatever's actually loaded), and `main.js`'s `navigateSkill()` (the main-process-authoritative skill-cycle, e.g. tied to a global shortcut) — this one used to be hardcoded to `["dsa"]` even after the default skill changed to `"programming"`, silently breaking the cycle (index -1, early return) until fixed to call `promptLoader.getAvailableSkills()`.
+  - Manual (needs a new line added per skill): `settings.html`'s `#activeSkill` `<select>` (plain hardcoded `<option>`s, not populated from JS), `main-window.js`'s own `this.availableSkills` array (renderer-side click-cycle for the skill badge, separate from main.js's copy), the `skillNames` label map in `main-window.js` (appears 3x, same object literal — used for display text on the badge/response), and `prompt-loader.js`'s `normalizeSkillName()` `skillMap` (name aliases, e.g. `'coding' → 'programming'`).
 - The coding-language dropdowns (`index.html`, `settings.html`) list the language sent to Gemini for `dsa`'s strict "output ONLY in this language" lock; `prompt-loader.js`'s `injectProgrammingLanguage()` has a `languageMap`/`fenceTagMap` per language for correct casing/fence tags — add new entries there when adding dropdown options, or it falls back to a naive capitalize (wrong for e.g. `C#`).
 
 ## Local Whisper / GPU
@@ -98,7 +100,8 @@ assests/icons/                # app icons — note the misspelling "assests" is 
 
 - `env -u` in npm scripts is bash syntax — fails in native PowerShell/cmd. Use Git Bash, WSL, or call `electron .` directly.
 - `DXGI` capture errors (`IDXGIDuplicateOutput does not use RGBA...`) in logs during screen-share-hide polling are benign/cosmetic on some Windows/GPU combos — not a functional failure unless capture actually stops working.
-- Killing the app: `npm start` run inside an agent/VSCode-integrated shell dies when that shell's parent (e.g. VSCode) closes. For a persistent run, launch from a standalone terminal, or use a detached launcher (e.g. a `.vbs` wrapping `cmd /c npx electron . --no-sandbox --disable-gpu` via `WScript.Shell.Run(..., 0, False)`).
+- Killing the app: `npm start` run inside an agent/VSCode-integrated shell dies when that shell's parent (e.g. VSCode) closes. For a persistent run, launch from a standalone terminal, or use a detached launcher — see `start-opencluely.vbs`.
+- **`start-opencluely.vbs`** (repo root) is a detached launcher a desktop shortcut can point at: `objShell.Run "cmd /c npx electron .", 0, False` — runs hidden (no console window), survives the parent terminal/VSCode closing. Originally had `--no-sandbox --disable-gpu`; **removed** — `--disable-gpu` forces software rendering and made the whole UI noticeably more sluggish than a plain `npm start`, and neither flag was actually needed for normal operation. Since it always runs `npx electron .` against the current source tree (not a packaged build), it needs no updates when app code changes — only touch it if the launch *command itself* needs to change.
 
 ## Environment
 

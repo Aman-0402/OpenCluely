@@ -26,7 +26,8 @@ class MainWindowUI {
         // Define available skills for navigation
         this.availableSkills = [
             'dsa',
-            'programming'
+            'programming',
+            'business-ai'
         ];
         
         this.init();
@@ -519,6 +520,7 @@ class MainWindowUI {
             'presentation': 'Presentation',
             'data-science': 'Data Science',
             'programming': 'Programming',
+            'business-ai': 'Business AI',
             'devops': 'DevOps',
             'system-design': 'System Design',
             'negotiation': 'Negotiation'
@@ -758,6 +760,7 @@ class MainWindowUI {
             'presentation': 'Presentation',
             'data-science': 'Data Science',
             'programming': 'Programming',
+            'business-ai': 'Business AI',
             'devops': 'DevOps',
             'system-design': 'System Design',
             'negotiation': 'Negotiation'
@@ -871,6 +874,7 @@ class MainWindowUI {
             'presentation': 'Presentation',
             'data-science': 'Data Science',
             'programming': 'Programming',
+            'business-ai': 'Business AI',
             'devops': 'DevOps',
             'system-design': 'System Design',
             'negotiation': 'Negotiation'

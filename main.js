@@ -1028,9 +1028,8 @@ class ApplicationController {
   }
 
   navigateSkill(direction) {
-    const availableSkills = [
-      "dsa",
-    ];
+    const { promptLoader } = require('./prompt-loader');
+    const availableSkills = promptLoader.getAvailableSkills();
 
     const currentIndex = availableSkills.indexOf(this.activeSkill);
     if (currentIndex === -1) {
