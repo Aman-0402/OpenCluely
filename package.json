@@ -94,7 +94,8 @@
         "NSMicrophoneUsageDescription": "OpenCluely uses the microphone to transcribe your speech locally with Whisper.",
         "NSCameraUsageDescription": "OpenCluely does not record video; this entitlement is only present for media-capture compatibility.",
         "NSScreenCaptureUsageDescription": "OpenCluely captures the screen to read on-screen content for AI assistance."
-      }
+      },
+      "icon": "build/icon.png"
     },
     "win": {
       "target": [
@@ -113,7 +114,8 @@
           ]
         }
       ],
-      "sign": null
+      "sign": null,
+      "icon": "build/icon.ico"
     },
     "linux": {
       "target": [
@@ -130,7 +132,7 @@
           ]
         }
       ],
-      "icon": "assests/icons/app-icon.png",
+      "icon": "build/icon.png",
       "category": "Utility"
     },
     "deb": {
@@ -162,7 +164,10 @@
       "perMachine": false,
       "include": "scripts/post-install-nsis.nsh",
       "deleteAppDataOnUninstall": false,
-      "artifactName": "OpenCluely-Setup-${version}.${ext}"
+      "artifactName": "OpenCluely-Setup-${version}.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     },
     "dmg": {
       "title": "OpenCluely Interview Assistant",

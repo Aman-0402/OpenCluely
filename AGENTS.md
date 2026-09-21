@@ -34,7 +34,11 @@ main.js                    # Electron main process entry — window lifecycle, I
 preload.js                 # contextBridge IPC surface exposed to renderer windows
 index.html / chat.html / llm-response.html / onboarding.html / settings.html   # renderer windows (plain JS, no bundler)
 speech-recognition.js       # renderer-side mic capture glue
+onboarding.js               # renderer script for onboarding.html (first-run wizard, incl. Whisper install UI)
 prompt-loader.js            # loads prompt templates from prompts/
+lib/                        # renderer helpers: markdown.js, mathrender.js
+webapp/                     # static marketing/landing site (index.html, style.css, script.js, og-image) — not part of the Electron app
+build/                      # electron-builder resources: icon.ico (multi-size) + icon.png, generated from aman.png
 src/
   core/
     config.js               # reads/merges config + env vars
@@ -54,8 +58,12 @@ src/
 scripts/
   whisper_worker.py           # long-lived Python worker process for local transcription
   test-speech.js
+  post-install-nsis.nsh       # Windows installer hook: asks permission, installs Python 3.12 if missing
+  post-install-deb.sh         # deb hook (no-op)
+  gen-og.js                   # generates webapp/og-image.png
 prompts/                      # prompt templates (per skill/language), asar-unpacked in build
-assests/icons/                # app icons — note the misspelling "assests" is intentional/existing, not a typo to fix
+assests/icons/                # stealth-mode icons (terminal/activity/settings) — note the misspelling "assests" is intentional/existing, not a typo to fix
+aman.png                      # the product logo (1254x1254); source for build/icon.*
 ```
 
 ## Key Conventions
@@ -72,6 +80,17 @@ assests/icons/                # app icons — note the misspelling "assests" is 
 - **LLM provider is single-vendor**: `src/services/llm.service.js` only supports Gemini (`GoogleGenAI` from `@google/genai`). Adding another provider (e.g. Claude) means adding a new client + provider-switch logic here, not swapping a config flag.
 - **Cursor is forced to default everywhere** (`*, *:hover { cursor: default !important; }` in `src/styles/common.css`, plus inline in `llm-response.html`/`onboarding.html` since they don't load `common.css`) — no hand/pointer cursor on any clickable element, per product preference. This also removes the text-beam cursor in inputs/textareas; that's a known trade-off, not an oversight.
 - **Chat answer scroll behavior** (`chat.html`): a new assistant message scrolls its own top into view (`scrollIntoView({block:'start'})`), not the chat container's bottom. This is deliberate — snapping to the absolute bottom on a long answer used to force the user to scroll back up to read it from the start. Only the *first* appended piece of a rendered response scrolls (`addMessage`/`addCodeSnippet` take a `scroll` param) — code blocks appended after the text must not re-scroll past the text's top.
+
+## Packaging / Installer
+
+- Windows installer: `npx electron-builder --win nsis --x64` → `dist/OpenCluely-Setup-1.0.0.exe` (NSIS, non-one-click, per-user, choose install dir, Desktop + Start Menu shortcuts). Full `npm run build:win` also builds `ia32` and `portable`. Mac/Linux builds must run on their own OS.
+- **Logo**: `aman.png` is the product logo. `build/icon.ico` (16–256px PNG frames) and `build/icon.png` (512) are generated from it and referenced by `win.icon`, `mac.icon`, `linux.icon`, and `nsis.installerIcon`/`uninstallerIcon`/`installerHeaderIcon`. Regenerate them if the logo changes (System.Drawing script, or any ICO tool). Without `win.icon` electron-builder logs `default Electron icon is used`.
+- **Stealth vs installer icon**: the installed exe/shortcuts use the aman logo, but at runtime stealth mode (`updateAppIcon` in `main.js`) swaps window/taskbar icon to `assests/icons/terminal.png` etc. Intentional.
+- **Dependency handling**: only real system dependency is Python 3.10+ (local Whisper). `scripts/post-install-nsis.nsh` (`customInstall`) checks `py -3` then `python`; if missing it shows a Yes/No prompt, then downloads Python 3.12.8 from python.org and runs it with `/passive InstallAllUsers=0 PrependPath=1` (per-user, no admin). Skipped in silent installs and on "No". ffmpeg is **not** needed on Windows — `whisper_worker.py` reads the app's PCM WAV directly.
+- The installer does **not** create the Whisper venv or pip-install `openai-whisper`. The onboarding wizard does that on first launch via `src/core/whisper-installer.js`, into `app.getPath("userData")/.venv-whisper` (models in `.whisper-models`). Reason: `app.setName()` stealth renames make the exact userData folder hard to predict from NSIS.
+- `package.json` `build.files` excludes `.env*`, `.venv-whisper`, `.whisper-models`; `prompts/**`, `assests/icons/**` and `scripts/whisper_worker.py` are `asarUnpack`ed so Python and file paths work.
+- Installer is **unsigned** (`win.sign: null`) → SmartScreen "unknown publisher" warning on other PCs.
+- The NSIS Python prompt was compiled but not run on a clean machine; test on a VM without Python after changing it.
 
 ## Skill / Prompt System
 
